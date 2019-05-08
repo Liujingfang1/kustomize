@@ -10,25 +10,27 @@ inventory:
 ```
 
 ### Motivation
-If present, `Kustomize build` will make an _inventory_ object,
-which  could be a ConfigMap, or an App(to be added),
- which can be consumed by a client such as those under development in
-[cli-experimental](https://github.com/kubernetes-sigs/cli-experimental).
-The client can recognize this object by name and use it to do a better job
-with actions like `apply`, `prune` and `delete`.
+If present, `kustomize build` will add a specially named object to its output
+that contains an _inventory_ object in its metadata. This object is currently
+a ConfigMap, but could be any k8s resource object.
+
+This _inventory_ object is intended for consumption by a client such as those
+under development in [cli-experimental](https://github.com/kubernetes-sigs/cli-experimental). The client can recognize this object
+by name and use it to do a better job with actions like apply, prune and delete.
+
 
 Read more about this below.
 
 ### Implementation
 
-The _inventory_ ConfigMap contains two special annotations:
+The _inventory_ ConfigMap contains two annotations:
 
-- kustomize.config.k8s.io/Inventory
+- `kustomize.config.k8s.io/Inventory`
   The value of this annotation is the JSON blob
   for an Inventory object. The Inventory is a
-  struct that contains following information
+  struct that contains the following information
   - all objects within this kusotmization target
-  - all objects that reference within this kustomization target
+  - all object reference relationships within this kustomization target
   Here is an example of an Inventory object
   ```json
   {
@@ -41,7 +43,7 @@ The _inventory_ ConfigMap contains two special annotations:
   }
   ```
 
-- kustomize.config.k8s.io/InventoryHash
+- `kustomize.config.k8s.io/InventoryHash`
   The value of this annotation is a hash that is 
   computed from the list of items in the Inventory
 
@@ -143,11 +145,8 @@ metadata:
   namespace: default
 ```
 
-It is clear that this ConfigMap contains an `Inventory` annotation.
-
-
 ### Hash
-Note that in the ConfigMap generated from `inventory` field, there is a hash
+Note that in the above ConfigMap generated from `inventory` field, there is a hash
 `b965tb9c7d`. It is the value for annotation `kustomize.config.k8s.io/InventoryHash`.
 
 This hash is computed by hashing all the keys in data field, which is the following list
@@ -157,7 +156,7 @@ apps|Deployment|default|mysql
 ~G|Secret|default|pass-dfg7h97cf6
 ~G|Service|default|mysql
 ```
-When any object is added or removed from the kustomzation target, the hash changes. Thus by simply comparing the hash in the ConfigMap objects, one can determine if the list of objects has changed.
+Once can compare the hash of two inventories to quickly see if they differ.
 
 
 ### How prune works
@@ -171,7 +170,6 @@ recognizes the _inventory_ ConfigMap by the annotation `kustomize.config.k8s.io/
 
 
 The `prune` command parses the value of `kustomize.config.k8s.io/Inventory` of the existing _inventory_ ConfigMap object and computes two sets of objects based on the parsed data.
-To be simple,
 - The items in `Inventory.Current` will be kept
 - The items in `Inventory.Previous` will be pruned when they
   are not needed.
