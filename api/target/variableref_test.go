@@ -4,7 +4,7 @@
 package target_test
 
 import (
-  "strings"
+	"strings"
 	"testing"
 
 	"sigs.k8s.io/kustomize/api/testutils/kusttest"
@@ -132,11 +132,11 @@ resources:
 - ../base1
 - ../base2
 `)
-  m, err := th.MakeKustTarget().MakeCustomizedResMap()
-  if err != nil {
+	m, err := th.MakeKustTarget().MakeCustomizedResMap()
+	if err != nil {
 		t.Fatalf("Err: %v", err)
-  }
-  th.AssertActualEqualsExpected(m,`
+	}
+	th.AssertActualEqualsExpected(m, `
 apiVersion: v1
 kind: Pod
 metadata:
@@ -233,7 +233,7 @@ spec:
         value: "$(POD_NAME)"
 `)
 
-th.WriteK("/app/overlay", `
+	th.WriteK("/app/overlay", `
 resources:
 - ../base1
 - ../base2
@@ -246,11 +246,11 @@ vars:
   fieldref:
     fieldpath: metadata.test
 `)
-  m, err := th.MakeKustTarget().MakeCustomizedResMap()
-  if err != nil {
+	m, err := th.MakeKustTarget().MakeCustomizedResMap()
+	if err != nil {
 		t.Fatalf("Err: %v", err)
-  }
-  th.AssertActualEqualsExpected(m,`
+	}
+	th.AssertActualEqualsExpected(m, `
 apiVersion: v1
 kind: Pod
 metadata:
@@ -367,11 +367,11 @@ spec:
 `)
 	_, err := th.MakeKustTarget().MakeCustomizedResMap()
 	if err == nil {
-			t.Fatalf("should have an error")
+		t.Fatalf("should have an error")
 	}
-  if !strings.Contains(err.Error(), "var 'POD_NAME1' already encountered") {
+	if !strings.Contains(err.Error(), "var 'POD_NAME1' already encountered") {
 		t.Fatalf("unexpected err: %v", err)
-  }
+	}
 }
 
 func TestVarPropagatesUp(t *testing.T) {
@@ -568,11 +568,11 @@ resources:
 - ../o1
 - ../o2
 `)
-  m, err := th.MakeKustTarget().MakeCustomizedResMap()
-  if err != nil {
+	m, err := th.MakeKustTarget().MakeCustomizedResMap()
+	if err != nil {
 		t.Fatalf("Err: %v", err)
 	}
-  th.AssertActualEqualsExpected(m, `
+	th.AssertActualEqualsExpected(m, `
 apiVersion: v1
 kind: Pod
 metadata:
