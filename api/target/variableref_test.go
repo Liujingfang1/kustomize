@@ -4,7 +4,7 @@
 package target_test
 
 import (
-	"strings"
+  "strings"
 	"testing"
 
 	"sigs.k8s.io/kustomize/api/testutils/kusttest"
@@ -64,7 +64,8 @@ spec:
 `)
 }
 
-func TestBasicVarCollision(t *testing.T) {
+//Variables are now replaced at a component level and wont collide if resolved
+func TestVarDirectoryReplacement(t *testing.T) {
 	th := kusttest_test.NewKustTestHarness(t, "/app/overlay")
 	th.WriteK("/app/base1", `
 namePrefix: base1-
@@ -131,13 +132,246 @@ resources:
 - ../base1
 - ../base2
 `)
+  m, err := th.MakeKustTarget().MakeCustomizedResMap()
+  if err != nil {
+		t.Fatalf("Err: %v", err)
+  }
+  th.AssertActualEqualsExpected(m,`
+apiVersion: v1
+kind: Pod
+metadata:
+  name: base1-kelley
+spec:
+  containers:
+  - command:
+    - echo
+    - base1-kelley
+    env:
+    - name: FOO
+      value: base1-kelley
+    image: smile
+    name: smile
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: base2-grimaldi
+spec:
+  containers:
+  - command:
+    - echo
+    - base2-grimaldi
+    env:
+    - name: FOO
+      value: base2-grimaldi
+    image: dance
+    name: dance
+`)
+}
+
+func TestVarsPropagateDown(t *testing.T) {
+	th := kusttest_test.NewKustTestHarness(t, "/app/overlay")
+	th.WriteK("/app/base1", `
+namePrefix: base1-
+resources:
+- pod.yaml
+vars:
+- name: POD_NAME
+  objref:
+    apiVersion: v1
+    kind: Pod
+    name: kelley
+  fieldref:
+    fieldpath: metadata.name
+`)
+	th.WriteF("/app/base1/pod.yaml", `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kelley
+spec:
+  containers:
+  - name: smile
+    image: smile
+    command:
+    - echo
+    - "$(POD_NAME)"
+    env:
+      - name: FOO
+        value: "$(POD_NAME)"
+`)
+
+	th.WriteK("/app/base2", `
+namePrefix: base2-
+resources:
+- pod.yaml
+vars:
+- name: POD_NAME
+  objref:
+    apiVersion: v1
+    kind: Pod
+    name: grimaldi
+  fieldref:
+    fieldpath: metadata.name
+`)
+	th.WriteF("/app/base2/pod.yaml", `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: grimaldi
+  test: test
+spec:
+  containers:
+  - name: dance
+    image: dance
+    command:
+    - echo
+    - "$(POD_NAME)"
+    - "$(POD_TEST)"
+    env:
+      - name: foo
+        value: "$(POD_NAME)"
+`)
+
+th.WriteK("/app/overlay", `
+resources:
+- ../base1
+- ../base2
+vars:
+- name: POD_TEST
+  objref:
+    apiVersion: v1
+    kind: Pod
+    name: grimaldi
+  fieldref:
+    fieldpath: metadata.test
+`)
+  m, err := th.MakeKustTarget().MakeCustomizedResMap()
+  if err != nil {
+		t.Fatalf("Err: %v", err)
+  }
+  th.AssertActualEqualsExpected(m,`
+apiVersion: v1
+kind: Pod
+metadata:
+  name: base1-kelley
+spec:
+  containers:
+  - command:
+    - echo
+    - base1-kelley
+    env:
+    - name: FOO
+      value: base1-kelley
+    image: smile
+    name: smile
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: base2-grimaldi
+  test: test
+spec:
+  containers:
+  - command:
+    - echo
+    - base2-grimaldi
+    - test
+    env:
+    - name: foo
+      value: base2-grimaldi
+    image: dance
+    name: dance
+`)
+}
+
+func TestVarCollisionOnUnresolvedVars(t *testing.T) {
+	th := kusttest_test.NewKustTestHarness(t, "/app/overlay")
+	th.WriteK("/app/base1", `
+namePrefix: base1-
+resources:
+- pod.yaml
+vars:
+- name: POD_NAME1
+  objref:
+    apiVersion: v1
+    kind: Pod
+    name: kelley
+  fieldref:
+    fieldpath: metadata.name
+
+`)
+	th.WriteF("/app/base1/pod.yaml", `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kelley
+spec:
+  containers:
+  - name: smile
+    image: smile
+    command:
+    - echo
+    env:
+      - name: FOO
+        value: BAR
+`)
+
+	th.WriteK("/app/base2", `
+namePrefix: base2-
+resources:
+- pod.yaml
+vars:
+- name: POD_NAME1
+  objref:
+    apiVersion: v1
+    kind: Pod
+    name: grimaldi
+  fieldref:
+    fieldpath: metadata.name
+`)
+	th.WriteF("/app/base2/pod.yaml", `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: grimaldi
+spec:
+  containers:
+  - name: dance
+    image: dance
+    command:
+    - echo
+    env:
+      - name: FOO
+        value: BAR
+`)
+
+	th.WriteK("/app/overlay", `
+resources:
+- pod.yaml
+- ../base1
+- ../base2
+`)
+	th.WriteF("/app/overlay/pod.yaml", `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: circus
+spec:
+  containers:
+  - name: ring
+    image: ring
+    command:
+    - echo
+    - "$(POD_NAME1)"
+`)
 	_, err := th.MakeKustTarget().MakeCustomizedResMap()
 	if err == nil {
-		t.Fatalf("should have an error")
+			t.Fatalf("should have an error")
 	}
-	if !strings.Contains(err.Error(), "var 'POD_NAME' already encountered") {
+  if !strings.Contains(err.Error(), "var 'POD_NAME1' already encountered") {
 		t.Fatalf("unexpected err: %v", err)
-	}
+  }
 }
 
 func TestVarPropagatesUp(t *testing.T) {
@@ -184,6 +418,13 @@ vars:
     name: grimaldi
   fieldref:
     fieldpath: metadata.name
+- name: POD_NAME3
+  objref:
+    apiVersion: v1
+    kind: Pod
+    name: circus
+  fieldref:
+    fieldpath: metadata.name
 `)
 	th.WriteF("/app/base2/pod.yaml", `
 apiVersion: v1
@@ -219,13 +460,12 @@ spec:
     image: ring
     command:
     - echo
-    - "$(POD_NAME1)"
-    - "$(POD_NAME2)"
+    - "$(POD_NAME3)"
     env:
       - name: P1
-        value: "$(POD_NAME1)"
+        value: "$(POD_NAME3)"
       - name: P2
-        value: "$(POD_NAME2)"
+        value: "$(POD_NAME3)"
 `)
 	m, err := th.MakeKustTarget().MakeCustomizedResMap()
 	if err != nil {
@@ -240,13 +480,12 @@ spec:
   containers:
   - command:
     - echo
-    - base1-kelley
-    - base2-grimaldi
+    - circus
     env:
     - name: P1
-      value: base1-kelley
+      value: circus
     - name: P2
-      value: base2-grimaldi
+      value: circus
     image: ring
     name: ring
 ---
@@ -329,41 +568,35 @@ resources:
 - ../o1
 - ../o2
 `)
-
-	/*
-	   	const presumablyDesired = `
-	   apiVersion: v1
-	   kind: Pod
-	   metadata:
-	     name: p1-base-myServerPod
-	   spec:
-	     containers:
-	     - env:
-	       - name: POD_NAME
-	         value: p1-base-myServerPod
-	       image: whatever
-	       name: myServer
-	   ---
-	   apiVersion: v1
-	   kind: Pod
-	   metadata:
-	     name: p2-base-myServerPod
-	   spec:
-	     containers:
-	     - env:
-	       - name: POD_NAME
-	         value: p2-base-myServerPod
-	       image: whatever
-	       name: myServer
-	   `
-	*/
-	_, err := th.MakeKustTarget().MakeCustomizedResMap()
-	if err == nil {
-		t.Fatalf("should have an error")
+  m, err := th.MakeKustTarget().MakeCustomizedResMap()
+  if err != nil {
+		t.Fatalf("Err: %v", err)
 	}
-	if !strings.Contains(err.Error(), "var 'POD_NAME' already encountered") {
-		t.Fatalf("unexpected err: %v", err)
-	}
+  th.AssertActualEqualsExpected(m, `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: p1-base-myServerPod
+spec:
+  containers:
+  - env:
+    - name: POD_NAME
+      value: base-myServerPod
+    image: whatever
+    name: myServer
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: p2-base-myServerPod
+spec:
+  containers:
+  - env:
+    - name: POD_NAME
+      value: base-myServerPod
+    image: whatever
+    name: myServer
+`)
 }
 
 func TestVarRefBig(t *testing.T) {
@@ -829,7 +1062,7 @@ spec:
         - --certs-dir /cockroach/cockroach-certs
         - --host $(hostname -f)
         - --http-host 0.0.0.0
-        - --join dev-base-cockroachdb-0.dev-base-cockroachdb,dev-base-cockroachdb-1.dev-base-cockroachdb,dev-base-cockroachdb-2.dev-base-cockroachdb
+        - --join base-cockroachdb-0.base-cockroachdb,base-cockroachdb-1.base-cockroachdb,base-cockroachdb-2.base-cockroachdb
         - --cache 25%
         - --max-sql-memory 25%
         image: cockroachdb/cockroach:v1.1.5
@@ -854,7 +1087,7 @@ spec:
         - -certs-dir=/cockroach-certs
         - -type=node
         - -addresses=localhost,127.0.0.1,${POD_IP},$(hostname -f),$(hostname -f|cut
-          -f 1-2 -d '.'),dev-base-cockroachdb-public
+          -f 1-2 -d '.'),base-cockroachdb-public
         - -symlink-ca-from=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         env:
         - name: POD_IP
@@ -904,11 +1137,11 @@ spec:
           containers:
           - command:
             - echo
-            - dev-base-cockroachdb
-            - dev-base-test-config-map-b2g2dmd64b
+            - base-cockroachdb
+            - base-test-config-map
             env:
             - name: CDB_PUBLIC_SVC
-              value: dev-base-cockroachdb-public
+              value: base-cockroachdb-public
             image: cockroachdb/cockroach:v1.1.5
             name: cronjob-example
   schedule: '*/1 * * * *'
@@ -1063,7 +1296,7 @@ metadata:
   name: kustomized-nginx
 spec:
   rules:
-  - host: kustomized-nginx.example.com
+  - host: nginx.example.com
     http:
       paths:
       - backend:
@@ -1072,8 +1305,8 @@ spec:
         path: /
   tls:
   - hosts:
-    - kustomized-nginx.example.com
-    secretName: kustomized-nginx.example.com-tls
+    - nginx.example.com
+    secretName: nginx.example.com-tls
 `)
 }
 
@@ -1315,7 +1548,7 @@ spec:
       containers:
       - env:
         - name: DISCOVERY_SERVICE
-          value: base-dev-elasticsearch.monitoring.svc.cluster.local
+          value: dev-elasticsearch.monitoring.svc.cluster.local
         name: elasticsearch
 ---
 apiVersion: v1
@@ -1339,7 +1572,7 @@ spec:
       containers:
       - env:
         - name: DISCOVERY_SERVICE
-          value: base-test-elasticsearch.monitoring.svc.cluster.local
+          value: test-elasticsearch.monitoring.svc.cluster.local
         name: elasticsearch
 ---
 apiVersion: v1
