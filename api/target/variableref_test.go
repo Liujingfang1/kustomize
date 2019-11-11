@@ -79,6 +79,7 @@ vars:
     name: kelley
   fieldref:
     fieldpath: metadata.name
+  immediateSubstitution: true
 `)
 	th.WriteF("/app/base1/pod.yaml", `
 apiVersion: v1
@@ -109,6 +110,7 @@ vars:
     name: grimaldi
   fieldref:
     fieldpath: metadata.name
+  immediateSubstitution: true
 `)
 	th.WriteF("/app/base2/pod.yaml", `
 apiVersion: v1
@@ -183,6 +185,7 @@ vars:
     name: kelley
   fieldref:
     fieldpath: metadata.name
+  immediateSubstitution: true
 `)
 	th.WriteF("/app/base1/pod.yaml", `
 apiVersion: v1
@@ -213,6 +216,7 @@ vars:
     name: grimaldi
   fieldref:
     fieldpath: metadata.name
+  immediateSubstitution: true
 `)
 	th.WriteF("/app/base2/pod.yaml", `
 apiVersion: v1
@@ -245,6 +249,7 @@ vars:
     name: grimaldi
   fieldref:
     fieldpath: metadata.test
+  immediateSubstitution: true
 `)
 	m, err := th.MakeKustTarget().MakeCustomizedResMap()
 	if err != nil {
@@ -299,6 +304,7 @@ vars:
     name: kelley
   fieldref:
     fieldpath: metadata.name
+  immediateSubstitution: true
 
 `)
 	th.WriteF("/app/base1/pod.yaml", `
@@ -329,6 +335,7 @@ vars:
     name: grimaldi
   fieldref:
     fieldpath: metadata.name
+  immediateSubstitution: true
 `)
 	th.WriteF("/app/base2/pod.yaml", `
 apiVersion: v1
@@ -370,6 +377,82 @@ spec:
 		t.Fatalf("should have an error")
 	}
 	if !strings.Contains(err.Error(), "var 'POD_NAME1' already encountered") {
+		t.Fatalf("unexpected err: %v", err)
+	}
+}
+
+func TestBasicVarCollision(t *testing.T) {
+	th := kusttest_test.NewKustTestHarness(t, "/app/overlay")
+	th.WriteK("/app/base1", `
+namePrefix: base1-
+resources:
+- pod.yaml
+vars:
+- name: POD_NAME
+  objref:
+    apiVersion: v1
+    kind: Pod
+    name: kelley
+  fieldref:
+    fieldpath: metadata.name
+`)
+	th.WriteF("/app/base1/pod.yaml", `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kelley
+spec:
+  containers:
+  - name: smile
+    image: smile
+    command:
+    - echo
+    - "$(POD_NAME)"
+    env:
+      - name: FOO
+        value: "$(POD_NAME)"
+`)
+
+	th.WriteK("/app/base2", `
+namePrefix: base2-
+resources:
+- pod.yaml
+vars:
+- name: POD_NAME
+  objref:
+    apiVersion: v1
+    kind: Pod
+    name: grimaldi
+  fieldref:
+    fieldpath: metadata.name
+`)
+	th.WriteF("/app/base2/pod.yaml", `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: grimaldi
+spec:
+  containers:
+  - name: dance
+    image: dance
+    command:
+    - echo
+    - "$(POD_NAME)"
+    env:
+      - name: FOO
+        value: "$(POD_NAME)"
+`)
+
+	th.WriteK("/app/overlay", `
+resources:
+- ../base1
+- ../base2
+`)
+	_, err := th.MakeKustTarget().MakeCustomizedResMap()
+	if err == nil {
+		t.Fatalf("should have an error")
+	}
+	if !strings.Contains(err.Error(), "var 'POD_NAME' already encountered") {
 		t.Fatalf("unexpected err: %v", err)
 	}
 }
@@ -539,6 +622,7 @@ vars:
     name: myServerPod
   fieldref:
     fieldpath: metadata.name
+  immediateSubstitution: true
 `)
 	th.WriteF("/app/base/pod.yaml", `
 apiVersion: v1
@@ -1062,7 +1146,7 @@ spec:
         - --certs-dir /cockroach/cockroach-certs
         - --host $(hostname -f)
         - --http-host 0.0.0.0
-        - --join base-cockroachdb-0.base-cockroachdb,base-cockroachdb-1.base-cockroachdb,base-cockroachdb-2.base-cockroachdb
+        - --join dev-base-cockroachdb-0.dev-base-cockroachdb,dev-base-cockroachdb-1.dev-base-cockroachdb,dev-base-cockroachdb-2.dev-base-cockroachdb
         - --cache 25%
         - --max-sql-memory 25%
         image: cockroachdb/cockroach:v1.1.5
@@ -1087,7 +1171,7 @@ spec:
         - -certs-dir=/cockroach-certs
         - -type=node
         - -addresses=localhost,127.0.0.1,${POD_IP},$(hostname -f),$(hostname -f|cut
-          -f 1-2 -d '.'),base-cockroachdb-public
+          -f 1-2 -d '.'),dev-base-cockroachdb-public
         - -symlink-ca-from=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         env:
         - name: POD_IP
@@ -1137,11 +1221,11 @@ spec:
           containers:
           - command:
             - echo
-            - base-cockroachdb
-            - base-test-config-map
+            - dev-base-cockroachdb
+            - dev-base-test-config-map-b2g2dmd64b
             env:
             - name: CDB_PUBLIC_SVC
-              value: base-cockroachdb-public
+              value: dev-base-cockroachdb-public
             image: cockroachdb/cockroach:v1.1.5
             name: cronjob-example
   schedule: '*/1 * * * *'
@@ -1296,7 +1380,7 @@ metadata:
   name: kustomized-nginx
 spec:
   rules:
-  - host: nginx.example.com
+  - host: kustomized-nginx.example.com
     http:
       paths:
       - backend:
@@ -1305,8 +1389,8 @@ spec:
         path: /
   tls:
   - hosts:
-    - nginx.example.com
-    secretName: nginx.example.com-tls
+    - kustomized-nginx.example.com
+    secretName: kustomized-nginx.example.com-tls
 `)
 }
 
