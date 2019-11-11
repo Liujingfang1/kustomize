@@ -4,7 +4,7 @@
 package krusty
 
 import (
-	"sigs.k8s.io/kustomize/api/plugins/config"
+	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/types"
 )
 
@@ -20,7 +20,7 @@ type Options struct {
 
 	// Restrictions on what can be loaded from the file system.
 	// See type definition.
-	LoadRestrictions loadRestrictions
+	LoadRestrictions types.LoadRestrictions
 
 	// Create an inventory object for pruning.
 	DoPrune bool
@@ -33,8 +33,8 @@ type Options struct {
 func MakeDefaultOptions() *Options {
 	return &Options{
 		DoLegacyResourceSort: true,
-		LoadRestrictions:     rootOnly,
+		LoadRestrictions:     types.LoadRestrictionsRootOnly,
 		DoPrune:              false,
-		PluginConfig:         config.DefaultPluginConfig(),
+		PluginConfig:         konfig.DisabledPluginConfig(),
 	}
 }

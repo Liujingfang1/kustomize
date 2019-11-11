@@ -9,18 +9,17 @@ import (
 	"strings"
 	"testing"
 
+	"sigs.k8s.io/kustomize/api/internal/k8sdeps/transformer"
 	"sigs.k8s.io/kustomize/api/internal/loadertest"
+	pLdr "sigs.k8s.io/kustomize/api/internal/plugins/loader"
+	"sigs.k8s.io/kustomize/api/internal/target"
 	"sigs.k8s.io/kustomize/api/k8sdeps/kunstruct"
-	"sigs.k8s.io/kustomize/api/k8sdeps/transformer"
+	"sigs.k8s.io/kustomize/api/konfig"
+	"sigs.k8s.io/kustomize/api/konfig/builtinpluginconsts"
 	fLdr "sigs.k8s.io/kustomize/api/loader"
-	"sigs.k8s.io/kustomize/api/pgmconfig"
-	"sigs.k8s.io/kustomize/api/plugins/builtinconfig/consts"
-	"sigs.k8s.io/kustomize/api/plugins/config"
-	pLdr "sigs.k8s.io/kustomize/api/plugins/loader"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
-	"sigs.k8s.io/kustomize/api/target"
-	"sigs.k8s.io/kustomize/api/testutils/valtest"
+	valtest_test "sigs.k8s.io/kustomize/api/testutils/valtest"
 	"sigs.k8s.io/kustomize/api/types"
 )
 
@@ -37,17 +36,20 @@ type KustTestHarness struct {
 
 func NewKustTestHarness(t *testing.T, path string) *KustTestHarness {
 	return NewKustTestHarnessFull(
-		t, path, fLdr.RestrictionRootOnly, config.DefaultPluginConfig())
+		t, path, fLdr.RestrictionRootOnly, konfig.DisabledPluginConfig())
 }
 
 func NewKustTestHarnessAllowPlugins(t *testing.T, path string) *KustTestHarness {
-	return NewKustTestHarnessFull(
-		t, path, fLdr.RestrictionRootOnly, config.ActivePluginConfig())
+	c, err := konfig.EnabledPluginConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return NewKustTestHarnessFull(t, path, fLdr.RestrictionRootOnly, c)
 }
 
 func NewKustTestHarnessNoLoadRestrictor(t *testing.T, path string) *KustTestHarness {
 	return NewKustTestHarnessFull(
-		t, path, fLdr.RestrictionNone, config.DefaultPluginConfig())
+		t, path, fLdr.RestrictionNone, konfig.DisabledPluginConfig())
 }
 
 func NewKustTestHarnessFull(
@@ -63,13 +65,17 @@ func NewKustTestHarnessFull(
 }
 
 func (th *KustTestHarness) MakeKustTarget() *target.KustTarget {
-	kt, err := target.NewKustTarget(
-		th.ldr, valtest_test.MakeFakeValidator(), th.rf,
-		transformer.NewFactoryImpl(), th.pl)
+	kt, err := th.MakeKustTargetOrErr()
 	if err != nil {
 		th.t.Fatalf("Unexpected construction error %v", err)
 	}
 	return kt
+}
+
+func (th *KustTestHarness) MakeKustTargetOrErr() (*target.KustTarget, error) {
+	return target.NewKustTarget(
+		th.ldr, valtest_test.MakeFakeValidator(), th.rf,
+		transformer.NewFactoryImpl(), th.pl)
 }
 
 func (th *KustTestHarness) WriteF(dir string, content string) {
@@ -83,7 +89,7 @@ func (th *KustTestHarness) WriteK(dir string, content string) {
 	th.WriteF(
 		filepath.Join(
 			dir,
-			pgmconfig.DefaultKustomizationFileName()), `
+			konfig.DefaultKustomizationFileName()), `
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 `+content)
@@ -97,12 +103,15 @@ func (th *KustTestHarness) FromMap(m map[string]interface{}) *resource.Resource 
 	return th.rf.RF().FromMap(m)
 }
 
-func (th *KustTestHarness) FromMapAndOption(m map[string]interface{}, args *types.GeneratorArgs, option *types.GeneratorOptions) *resource.Resource {
+func (th *KustTestHarness) FromMapAndOption(
+	m map[string]interface{},
+	args *types.GeneratorArgs,
+	option *types.GeneratorOptions) *resource.Resource {
 	return th.rf.RF().FromMapAndOption(m, args, option)
 }
 
 func (th *KustTestHarness) WriteDefaultConfigs(fName string) {
-	m := consts.GetDefaultFieldSpecsAsMap()
+	m := builtinpluginconsts.GetDefaultFieldSpecsAsMap()
 	var content []byte
 	for _, tCfg := range m {
 		content = append(content, []byte(tCfg)...)

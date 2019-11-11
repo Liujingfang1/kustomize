@@ -5,15 +5,15 @@ package build
 
 import (
 	"io"
+	"log"
 	"path/filepath"
 	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/kustomize/api/filesys"
+	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/krusty"
-	"sigs.k8s.io/kustomize/api/pgmconfig"
-	"sigs.k8s.io/kustomize/api/plugins/config"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/yaml"
@@ -24,7 +24,6 @@ type Options struct {
 	kustomizationPath string
 	outputPath        string
 	outOrder          reorderOutput
-	pluginsEnabled    bool
 }
 
 // NewOptions creates a Options object
@@ -58,7 +57,7 @@ func NewCmdBuild(out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "build {path}",
 		Short: "Print configuration per contents of " +
-			pgmconfig.DefaultKustomizationFileName(),
+			konfig.DefaultKustomizationFileName(),
 		Example:      examples,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,9 +73,8 @@ func NewCmdBuild(out io.Writer) *cobra.Command {
 		&o.outputPath,
 		"output", "o", "",
 		"If specified, write the build output to this path.")
-	krusty.AddFlagLoadRestrictor(cmd.Flags())
-	config.AddFlagEnablePlugins(
-		cmd.Flags(), &o.pluginsEnabled)
+	addFlagLoadRestrictor(cmd.Flags())
+	addFlagEnablePlugins(cmd.Flags())
 	addFlagReorderOutput(cmd.Flags())
 	cmd.AddCommand(NewCmdBuildPrune(out))
 	return cmd
@@ -89,14 +87,14 @@ func (o *Options) Validate(args []string) (err error) {
 	if len(args) > 1 {
 		return errors.New(
 			"specify one path to " +
-				pgmconfig.DefaultKustomizationFileName())
+				konfig.DefaultKustomizationFileName())
 	}
 	if len(args) == 0 {
 		o.kustomizationPath = CWD
 	} else {
 		o.kustomizationPath = args[0]
 	}
-	err = krusty.ValidateFlagLoadRestrictor()
+	err = validateFlagLoadRestrictor()
 	if err != nil {
 		return err
 	}
@@ -105,10 +103,20 @@ func (o *Options) Validate(args []string) (err error) {
 }
 
 func (o *Options) makeOptions() *krusty.Options {
-	opts := krusty.MakeDefaultOptions()
-	opts.LoadRestrictions = krusty.GetFlagLoadRestrictorValue()
-	opts.DoLegacyResourceSort = o.outOrder == legacy
-	opts.PluginConfig.Enabled = o.pluginsEnabled
+	opts := &krusty.Options{
+		DoLegacyResourceSort: o.outOrder == legacy,
+		LoadRestrictions:     getFlagLoadRestrictorValue(),
+		DoPrune:              false,
+	}
+	if isFlagEnablePluginsSet() {
+		c, err := konfig.EnabledPluginConfig()
+		if err != nil {
+			log.Fatal(err)
+		}
+		opts.PluginConfig = c
+	} else {
+		opts.PluginConfig = konfig.DisabledPluginConfig()
+	}
 	return opts
 }
 

@@ -1,19 +1,13 @@
-/*
-Copyright 2018 The Kubernetes Authors.
+// Copyright 2019 The Kubernetes Authors.
+// SPDX-License-Identifier: Apache-2.0
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
+// 2019 Nov 06  These notes are somewhat out of date, but left
+// for historical purposes need to be updated (or simply removed
+// with all the code).  The kubectl integration plan described
+// below is no longer the plan of record.
+//
+// --------
+//
 // It's possible that kustomize's features will be vendored into
 // the kubernetes/kubernetes repo and made available to kubectl
 // commands, while at the same time the kustomize program will
@@ -27,18 +21,18 @@ limitations under the License.
 //       tree/master/pkg/util/yaml
 //
 // It vendors that package into
-//   sigs.k8s.io/kustomize/vendor/k8s.io/apimachinery/
+//   sigs.k8s.io/kustomize/vendor/sigs.k8s.io/kustomize/pseudo/k8s/apimachinery/
 //
 // Whereas kubectl-kustomize would have to depend on the "staging"
 // version of this code, located at
 //
 //   https://github.com/kubernetes/kubernetes/
-//       blob/master/staging/src/k8s.io/apimachinery/pkg/util/yaml
+//       blob/master/staging/src/sigs.k8s.io/kustomize/pseudo/k8s/apimachinery/pkg/util/yaml
 //
 // which is "vendored" via symlinks:
-//   k8s.io/kubernetes/vendor/k8s.io/apimachinery
+//   k8s.io/kubernetes/vendor/sigs.k8s.io/kustomize/pseudo/k8s/apimachinery
 // is a symlink to
-//   ../../staging/src/k8s.io/apimachinery
+//   ../../staging/src/sigs.k8s.io/kustomize/pseudo/k8s/apimachinery
 //
 // The staging version is the canonical, under-development
 // version of the code that kubectl depends on, whereas the packages

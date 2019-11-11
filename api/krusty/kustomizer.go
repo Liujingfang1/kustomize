@@ -4,16 +4,17 @@
 package krusty
 
 import (
+	"sigs.k8s.io/kustomize/api/builtins"
 	"sigs.k8s.io/kustomize/api/filesys"
+	"sigs.k8s.io/kustomize/api/internal/k8sdeps/transformer"
+	pLdr "sigs.k8s.io/kustomize/api/internal/plugins/loader"
+	"sigs.k8s.io/kustomize/api/internal/target"
 	"sigs.k8s.io/kustomize/api/k8sdeps/kunstruct"
-	"sigs.k8s.io/kustomize/api/k8sdeps/transformer"
 	"sigs.k8s.io/kustomize/api/k8sdeps/validator"
 	fLdr "sigs.k8s.io/kustomize/api/loader"
-	"sigs.k8s.io/kustomize/api/plugins/builtins"
-	pLdr "sigs.k8s.io/kustomize/api/plugins/loader"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
-	"sigs.k8s.io/kustomize/api/target"
+	"sigs.k8s.io/kustomize/api/types"
 )
 
 // Kustomizer performs kustomizations.  It's meant to behave
@@ -25,11 +26,6 @@ import (
 type Kustomizer struct {
 	fSys    filesys.FileSystem
 	options *Options
-}
-
-// MakeDefaultKustomizer returns a Kustomizer with default configuration.
-func MakeDefaultKustomizer() *Kustomizer {
-	return MakeKustomizer(filesys.MakeFsOnDisk(), MakeDefaultOptions())
 }
 
 // MakeKustomizer returns an instance of Kustomizer.
@@ -55,7 +51,7 @@ func (b *Kustomizer) Run(path string) (resmap.ResMap, error) {
 			kunstruct.NewKunstructuredFactoryImpl()),
 		pf)
 	lr := fLdr.RestrictionNone
-	if b.options.LoadRestrictions == rootOnly {
+	if b.options.LoadRestrictions == types.LoadRestrictionsRootOnly {
 		lr = fLdr.RestrictionRootOnly
 	}
 	ldr, err := fLdr.NewLoader(lr, path, b.fSys)
