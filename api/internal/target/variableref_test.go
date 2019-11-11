@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"sigs.k8s.io/kustomize/api/testutils/kusttest"
+	kusttest_test "sigs.k8s.io/kustomize/api/testutils/kusttest"
 )
 
 func TestBasicVariableRef(t *testing.T) {
@@ -304,7 +304,6 @@ vars:
     name: kelley
   fieldref:
     fieldpath: metadata.name
-  immediateSubstitution: true
 
 `)
 	th.WriteF("/app/base1/pod.yaml", `
@@ -335,7 +334,6 @@ vars:
     name: grimaldi
   fieldref:
     fieldpath: metadata.name
-  immediateSubstitution: true
 `)
 	th.WriteF("/app/base2/pod.yaml", `
 apiVersion: v1
@@ -1632,7 +1630,7 @@ spec:
       containers:
       - env:
         - name: DISCOVERY_SERVICE
-          value: dev-elasticsearch.monitoring.svc.cluster.local
+          value: base-dev-elasticsearch.monitoring.svc.cluster.local
         name: elasticsearch
 ---
 apiVersion: v1
@@ -1656,7 +1654,7 @@ spec:
       containers:
       - env:
         - name: DISCOVERY_SERVICE
-          value: test-elasticsearch.monitoring.svc.cluster.local
+          value: base-test-elasticsearch.monitoring.svc.cluster.local
         name: elasticsearch
 ---
 apiVersion: v1
