@@ -198,7 +198,8 @@ system running `kustomize build`.
 
 ## Authoring
 
-There are two kinds of plugins, [exec](#exec-plugins) and [Go](#go-plugins).
+There are three kinds of plugins, [exec](#exec-plugins), [Go](#go-plugins)
+and [function](#function)
 
 ### Exec plugins
 
@@ -376,3 +377,21 @@ d=$XDG_CONFIG_HOME/kustomize/plugin\
 go build -buildmode plugin \
    -o $d/${kind}.so $d/${kind}.go
 ```
+
+### function
+
+Functions are docker images that can manipulate Resource configuration.
+A function can be a Generator, Transformer or
+a Validator.
+
+A function config follows Kubernetes Resource Model and recognized by the annotation `config.kubernetes.io/function`.
+
+[template go nginx]: https://github.com/kubernetes-sigs/kustomize/tree/master/functions/examples/template-go-nginx
+[template-heredoc-cockroachdb]: https://github.com/kubernetes-sigs/kustomize/tree/master/functions/examples/template-heredoc-cockroachdb
+[validator-kubeval]: https://github.com/kubernetes-sigs/kustomize/tree/master/functions/examples/validator-kubeval
+#### Examples
+* [template go nginx] - A function that generates a Deployment and a Service for nginx.
+* [template-heredoc-cockroachdb] - A function that generates a cockroachdb configuration.
+* [validator-kubeval] - A function that validates resources with kubeval.
+
+Note that you must understand what the function actually does to use it. Random picked up function may conflict with kustomize builtin plugins.
